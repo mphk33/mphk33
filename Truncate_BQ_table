@@ -1,0 +1,24 @@
+https://poe.com/s/vO7q8i3Xy6EPA5GaqvAi
+
+Case:
+I have a bigquery table with the columns of cust_id, age, gender, country, rule_10, rule_15, rule_18, rule_20,......
+
+Please write a bigquery script to output another table only with columns cust_id and all those rule_*
+
+##############################################3
+DECLARE rule_columns STRING;
+
+-- Select all rule_* column names
+SET rule_columns = (
+  SELECT STRING_AGG(column_name)
+  FROM `your_dataset.INFORMATION_SCHEMA.COLUMNS`
+  WHERE table_name = 'your_table'
+    AND column_name LIKE 'rule_%'
+);
+
+-- Create a new table with cust_id and all rule_* columns
+EXECUTE IMMEDIATE FORMAT("""
+CREATE TABLE your_dataset.new_table AS
+SELECT cust_id, %s
+FROM your_dataset.your_table
+""", rule_columns);
