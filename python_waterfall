@@ -1,0 +1,186 @@
+raw data:
+cust_id	rule_10	rule_15	rule_18	rule_20
+1	1	0	0	1
+2	1	0	1	1
+3	1	0	0	1
+4	0	0	1	0
+5	0	0	0	0
+6	0	1	1	0
+7	1	1	0	0
+8	1	0	1	1
+9	0	0	0	0
+10	0	0	1	1
+
+key:
+rule	exclusion_reason
+rule_10	invalid ID
+rule_15	Foreign
+rule_18	No credit card
+rule_20	Wrong promo code
+
+expected results:
+rule	exclusion_reason	n_cust	waterfall
+rule_10	invalid ID	5	5
+rule_15	Foreign	2	4
+rule_18	No credit card	5	2
+rule_20	Wrong promo code	5	2
+
+######################################3
+python program:
+
+import pandas as pd
+import io
+
+# --- 1. Create df_target from the 'raw' data ---
+# In a real-world scenario, you would use pd.read_excel() or pd.read_csv().
+# Here, we simulate the file content using io.StringIO.
+raw_data = """cust_id,rule_10,rule_15,rule_18,rule_20
+1,1,0,0,1
+2,1,0,1,1
+3,1,0,0,1
+4,0,0,1,0
+5,0,0,0,0
+6,0,1,1,0
+7,1,1,0,0
+8,1,0,1,1
+9,0,0,0,0
+10,0,0,1,1
+"""
+
+df_target = pd.read_csv(io.StringIO(raw_data))
+
+# --- 2. Create df_key from the 'key' data ---
+key_data = """rule,exclusion_reason
+rule_10,invalid ID
+rule_15,Foreign
+rule_18,No credit card
+rule_20,Wrong promo code
+"""
+
+df_key = pd.read_csv(io.StringIO(key_data))
+
+# --- 3. Generate the summary table ---
+
+# Get the list of rule columns in the specified order from df_key
+rule_columns = df_key['rule'].tolist()
+
+summary_data = []
+
+# This list will keep track of the rules to check for the waterfall calculation
+waterfall_check_rules = []
+
+for rule in rule_columns:
+    # Logic for n_cust: Count of customers where the rule is 1.
+    n_cust = df_target[rule].sum()
+
+    # Add the current rule to the list for the waterfall check
+    waterfall_check_rules.append(rule)
+    
+    # Logic for waterfall: Count of customers where all rules up to this point are 0.
+    # We create a boolean mask. For each customer (row), it checks if all values
+    # in the 'waterfall_check_rules' columns are equal to 0.
+    mask = (df_target[waterfall_check_rules] == 0).all(axis=1)
+    
+    # The waterfall count is the sum of rows where the mask is True.
+    waterfall = mask.sum()
+
+    summary_data.append({
+        'rule': rule,
+        'n_cust': n_cust,
+        'waterfall': waterfall
+    })
+
+# Create a DataFrame from the calculated summary data
+df_summary = pd.DataFrame(summary_data)
+
+# Merge with the key dataframe to add the 'exclusion_reason' column
+df_result = pd.merge(df_key, df_summary, on='rule')
+
+# Reorder columns to match the expected output format from the 'result' worksheet [[doc_1]]
+df_result = df_result[['rule', 'exclusion_reason', 'n_cust', 'waterfall']]
+
+# --- Display the final result ---
+print("--- df_target ---")
+print(df_target)
+print("\n--- df_key ---")
+print(df_key)
+print("\n--- Final Result ---")
+print(df_result)
+
+
+# --- Display the final sentence as requested ---
+
+# Get the last value from the 'waterfall' column
+eligible_customers = df_result['waterfall'].iloc[-1]
+
+# Print the final sentence using an f-string with comma formatting
+# The ':, ' specifier tells Python to use a comma as a thousands separator.
+print(f"No. of eligible customers = {eligible_customers:,}")
+
+##############################################
+###############################################
+
+import pandas as pd
+import io
+
+# --- 1. Create df_target from the 'raw' data ---
+raw_data = """cust_id,rule_10,rule_15,rule_18,rule_20
+1,1,0,0,1
+2,1,0,1,1
+3,1,0,0,1
+4,0,0,1,0
+5,0,0,0,0
+6,0,1,1,0
+7,1,1,0,0
+8,1,0,1,1
+9,0,0,0,0
+10,0,0,1,1
+"""
+
+df_target = pd.read_csv(io.StringIO(raw_data))
+
+# --- 2. Create df_key from the 'key' data ---
+key_data = """rule,exclusion_reason
+rule_10,invalid ID
+rule_15,Foreign
+rule_18,No credit card
+rule_20,Wrong promo code
+"""
+
+df_key = pd.read_csv(io.StringIO(key_data))
+
+# --- 3. Generate the summary table ---
+
+rule_columns = df_key['rule'].tolist()
+summary_data = []
+waterfall_check_rules = []
+
+for rule in rule_columns:
+    n_cust = df_target[rule].sum()
+    
+    waterfall_check_rules.append(rule)
+    mask = (df_target[waterfall_check_rules] == 0).all(axis=1)
+    waterfall = mask.sum()
+
+    summary_data.append({
+        'rule': rule,
+        'n_cust': n_cust,
+        'waterfall': waterfall
+    })
+
+df_summary = pd.DataFrame(summary_data)
+df_result = pd.merge(df_key, df_summary, on='rule')
+df_result = df_result[['rule', 'exclusion_reason', 'n_cust', 'waterfall']]
+
+# --- Display the main result table ---
+print("--- Final Result ---")
+print(df_result)
+print("\n" + "="*30 + "\n") # Separator for clarity
+
+# --- Display the final sentence as requested ---
+
+# Get the last value from the 'waterfall' column [[6]][doc_6][[7]][doc_7][[8]][doc_8]
+eligible_customers = df_result['waterfall'].iloc[-1]
+
+# Print the final sentence using an f-string for formatting [[1]][doc_1][[2]][doc_2][[3]][doc_3]
+print(f"No. of eligible customers = {eligible_customers}")
