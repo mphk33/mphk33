@@ -1,122 +1,187 @@
-raw data:
-cust_id	rule_10	rule_15	rule_18	rule_20
-1	1	0	0	1
-2	1	0	1	1
-3	1	0	0	1
-4	0	0	1	0
-5	0	0	0	0
-6	0	1	1	0
-7	1	1	0	0
-8	1	0	1	1
-9	0	0	0	0
-10	0	0	1	1
+############# PROMPT ##################
+Role:
+You are an expert of python programming.
+You will be given sample data tables and you are going to provide the python programming scripts to generate expected results.
 
-key:
-rule	exclusion_reason
-rule_10	invalid ID
-rule_15	Foreign
-rule_18	No credit card
-rule_20	Wrong promo code
 
-expected results:
-rule	exclusion_reason	n_cust	waterfall
-rule_10	invalid ID	5	5
-rule_15	Foreign	2	4
-rule_18	No credit card	5	2
-rule_20	Wrong promo code	5	2
+Rule:
+- Use the information provided in attached excel file.
+  Worksheet "raw" is the sample data.
+  Worksheet "key" is the explanation of some of the columns in worksheet "raw".
+  Worksheet "result" is the expected results that need you to provide python programming scripts to generate.
+- Keep your programming scripts short and simple and easy to understand, while fulfill the requirements.
+- Show all the program scripts step by step in one single program, with simple comments for each step.
 
-######################################3
-python program:
+  Example of step by step comments as below:
+# ==============================================================================
+# Step 2: Create the key DataFrame
+# ==============================================================================
 
+
+Task:
+Provide python programming scripts to do the below. 
+
+1. Based on the data in worksheet "raw" to create a dataframe called "df_target".
+
+2. Based on the information in worksheet "key", and the "rule_*" columns of df_target, to create another dataframe called "df_key", so that the the column "rule" in df_key should have possible values as shown in worksheet "key" and the "rule_*" column names in df_target. df_key should have distinct values in "rule" column, and the sequence of records is in ascending order of "rule" column.
+
+3. Based on df_target to create a new dataframe called "df_stage", which as the same number of records as df_target, and with a new column called "waterfall_hit". The logic of "waterfall_hit" is, when rule_* = 1 then individual_hit = "rule_*", and do it in an ascending order of "rule_*" as in the "rue_*" column names in df_target. If individual_hit is finally null, then put a value "rule_999".
+
+Example of waterfall_hit calculation (assume there are rule_1, rule_2 and rule_3 in df_target):
+- if rule_1 = 1 then individual_hit = "rule_1"
+  else if rule_2 = 1 then individual_hit = "rule_2"
+  else if rule_3 = 1 then individual_hit = "rule_3"
+  else individual_hit = "rule_999".
+
+4. Use df_stage and df_key to generate a summary table as in worksheet "result", showing the columns rule, exclusion_reason, individual_hit and waterfall. Logic of waterfall are as below:
+
+   Logic:
+   waterfall of each row = no. of customers with that the first rule to the rule of this rule are all equal to 0
+
+5. Before the first row of the summary table, insert a row with rule = '-', exclusion_reason = '(Whole Base before exclusion)', individual_hit = 0, waterfall = (no. of rows in df_stage).
+ 
+6. Display the summary table in ascending order of "rule", with columns: rule, exclusion_reason, individual_hit, waterfall. All numbers are in the format of thousand comma, e.g. for value 12000, show "12,000".
+
+7. Display a sentence "No. of eligible customers = {the waterfall value of the last row in the summary table, showing the figure in the format of thousand comma}."
+
+8. Based on df_stage, create a new dataframe called df_final, with the same records as in df_stage, but only have columns "cust_id" and "waterfall_bit".
+
+9. Use df_final, display the value counts of waterfall_hit in ascending order of waterfall_hit,  showing the figure in the format of thousand.
+
+############ END PROMPT #################
+
+
+##############3 PYTHON PROGRAM ###################
 import pandas as pd
 import io
+import numpy as np
 
-# --- 1. Create df_target from the 'raw' data ---
-# This data represents the initial customer pool and their exclusion flags [[1]][doc_1].
-raw_data = """cust_id,rule_10,rule_15,rule_18,rule_20
-1,1,0,0,1
-2,1,0,1,1
-3,1,0,0,1
-4,0,0,1,0
-5,0,0,0,0
-6,0,1,1,0
-7,1,1,0,0
-8,1,0,1,1
-9,0,0,0,0
-10,0,0,1,1
+# ==============================================================================
+# Step 1: Based on the data in worksheet "raw" to create a dataframe called "df_target"
+# ==============================================================================
+# In a real-world scenario, you would use pd.read_excel('your_file.xlsx', sheet_name='raw')
+# For this example, we'll create the DataFrame from the provided text data.
+raw_data = """cust_id,rule_10,rule_12,rule_15,rule_18,rule_20
+1,1,0,0,0,1
+2,1,0,0,1,1
+3,1,0,0,0,1
+4,0,0,0,1,0
+5,0,0,0,0,0
+6,0,0,1,1,0
+7,1,0,1,0,0
+8,1,0,0,1,1
+9,0,0,0,0,0
+10,0,0,0,1,1
 """
 
 df_target = pd.read_csv(io.StringIO(raw_data))
 
-# --- 2. Create df_key from the 'key' data ---
-# This data provides the descriptions for each rule [[1]][doc_1].
+# ==============================================================================
+# Step 2: Create the key DataFrame
+# ==============================================================================
+# Again, we create the DataFrame from the provided text data.
+# Information from both 'key' and 'result' worksheets is combined to create a complete key.
 key_data = """rule,exclusion_reason
-rule_10,invalid ID
+rule_10,Invalid ID
+rule_12,No address
 rule_15,Foreign
 rule_18,No credit card
 rule_20,Wrong promo code
 """
+df_key_source = pd.read_csv(io.StringIO(key_data))
 
-df_key = pd.read_csv(io.StringIO(key_data))
+# Get all 'rule_*' column names from df_target and sort them.
+rule_columns = sorted([col for col in df_target.columns if col.startswith('rule_')])
 
-# --- 3. Generate the summary table based on exclusion rules ---
+# Create the final df_key by merging the full rule list with the source key data.
+df_key = pd.DataFrame({'rule': rule_columns})
+df_key = pd.merge(df_key, df_key_source, on='rule', how='left')
 
-# Get the list of rule columns in the specified order from df_key [[1]][doc_1].
-rule_columns = df_key['rule'].tolist()
+# ==============================================================================
+# Step 3: Create df_stage with the 'waterfall_hit' column
+# ==============================================================================
+# Create df_stage as a copy of df_target.
+df_stage = df_target.copy()
 
-summary_data = []
-waterfall_check_rules = []
+# Set a default value for 'waterfall_hit'.
+df_stage['waterfall_hit'] = 'rule_999'
 
-# This loop calculates n_cust and waterfall for each exclusion rule [[1]][doc_1].
-for rule in rule_columns:
-    n_cust = df_target[rule].sum()
-    
-    waterfall_check_rules.append(rule)
-    mask = (df_target[waterfall_check_rules] == 0).all(axis=1)
-    waterfall = mask.sum()
+# Iterate through the rules in reverse order to apply the waterfall logic.
+# The last rule that is '1' in the sorted list will be the one that is kept.
+for rule in reversed(rule_columns):
+    df_stage.loc[df_stage[rule] == 1, 'waterfall_hit'] = rule
 
-    summary_data.append({
-        'rule': rule,
-        'n_cust': n_cust,
-        'waterfall': waterfall
-    })
+# ==============================================================================
+# Step 4: Use df_stage and df_key to generate a summary table
+# ==============================================================================
+# Calculate the number of customers for each 'waterfall_hit' value.
+individual_hit_counts = df_stage['waterfall_hit'].value_counts()
 
-df_summary = pd.DataFrame(summary_data)
-df_result = pd.merge(df_key, df_summary, on='rule')
-df_result = df_result[['rule', 'exclusion_reason', 'n_cust', 'waterfall']]
+# Create the summary table by mapping the counts to df_key.
+summary_table = df_key.copy()
+summary_table['individual_hit'] = summary_table['rule'].map(individual_hit_counts).fillna(0).astype(int)
 
-# --- 4. Insert the initial state row at the top of the result table ---
+# Get the total number of customers.
+total_customers = len(df_stage)
 
-# Create a new DataFrame for the row to be inserted.
-# The 'waterfall' value is the total number of customers from the raw data [[1]][doc_1].
-initial_row = pd.DataFrame([{
+# Calculate the waterfall column as the cumulative remaining customers.
+summary_table['waterfall'] = total_customers - summary_table['individual_hit'].cumsum()
+
+# ==============================================================================
+# Step 5: Insert a row at the beginning of the summary table
+# ==============================================================================
+# Create the initial row as a dictionary.
+initial_row = {
     'rule': '-',
-    'exclusion_reason': '-',
-    'n_cust': 0,
-    'waterfall': len(df_target)
-}])
+    'exclusion_reason': '(Whole Base before exclusion)',
+    'individual_hit': 0,
+    'waterfall': total_customers
+}
 
-# Concatenate the new initial row with the previously generated result table.
-df_final_result = pd.concat([initial_row, df_result], ignore_index=True)
+# Convert the dictionary to a DataFrame and concatenate it with the summary table.
+summary_table = pd.concat([pd.DataFrame([initial_row]), summary_table], ignore_index=True)
 
-# --- 5. Prepare data for final display ---
+# ==============================================================================
+# Step 6: Display the formatted summary table
+# ==============================================================================
+# Create a copy for display purposes to apply string formatting.
+display_summary = summary_table.copy()
 
-# Get the last value from the 'waterfall' column for the final sentence.
-# This is done *before* formatting the column as a string.
-# The final waterfall value for rule_20 is 2 [[2]][doc_2].
-eligible_customers = df_final_result['waterfall'].iloc[-1]
+# Apply thousand comma formatting to numeric columns.
+display_summary['individual_hit'] = display_summary['individual_hit'].apply(lambda x: f"{x:,}")
+display_summary['waterfall'] = display_summary['waterfall'].apply(lambda x: f"{x:,}")
 
-# Apply comma formatting to the 'n_cust' and 'waterfall' columns for display.
-# This converts the numbers in these columns into formatted strings.
-df_final_result['n_cust'] = df_final_result['n_cust'].apply(lambda x: f'{x:,}')
-df_final_result['waterfall'] = df_final_result['waterfall'].apply(lambda x: f'{x:,}')
+print("--- Exclusion Waterfall Summary ---")
+print(display_summary.to_string(index=False))
+print("\n" + "="*50 + "\n")
 
+# ==============================================================================
+# Step 7: Display the number of eligible customers
+# ==============================================================================
+# Get the last waterfall value, which represents the final eligible customers.
+eligible_customers_count = summary_table['waterfall'].iloc[-1]
+print(f"No. of eligible customers = {eligible_customers_count:,}.") # [[1]]
+print("\n" + "="*50 + "\n")
 
-# --- Display the final result ---
-print("--- Final Result ---")
-print(df_final_result)
+# ==============================================================================
+# Step 8: Create df_final with only 'cust_id' and 'waterfall_hit'
+# ==============================================================================
+df_final = df_stage[['cust_id', 'waterfall_hit']].copy()
 
-# --- Display the final sentence as requested ---
+# ==============================================================================
+# Step 9: Display the value counts of 'waterfall_hit' from df_final
+# ==============================================================================
+# Calculate value counts and sort by the rule name.
+final_counts = df_final['waterfall_hit'].value_counts().sort_index()
 
-# Print the final sentence using the stored eligible_customers variable.
-print(f"\nNo. of eligible customers = {eligible_customers:,}")
+# Convert to DataFrame for better display formatting.
+df_final_counts = final_counts.reset_index()
+df_final_counts.columns = ['waterfall_hit', 'count']
+
+# Apply thousand comma formatting.
+df_final_counts['count'] = df_final_counts['count'].apply(lambda x: f"{x:,}")
+
+print("--- Final Customer Counts by Hit Rule ---")
+print(df_final_counts.to_string(index=False))
+
+################# END PYTHON PROGRAM ########################333
